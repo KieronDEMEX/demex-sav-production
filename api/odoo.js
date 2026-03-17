@@ -1,4 +1,4 @@
-// API Serverless Vercel pour Demex SAV
+// API Serverless Vercel pour Demex SAV - Support Token API
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -7,29 +7,27 @@ export default async function handler(req, res) {
     
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    // Debug: Vérifier les variables d'environnement
-    console.log('Environment check:', {
-        hasUrl: !!process.env.ODOO_URL,
-        hasDb: !!process.env.ODOO_DB,
-        hasUser: !!process.env.ODOO_USERNAME,
-        hasPass: !!process.env.ODOO_PASSWORD,
-        url: process.env.ODOO_URL,
-        db: process.env.ODOO_DB
-    });
-
     const ODOO = {
         url: process.env.ODOO_URL || '',
         db: process.env.ODOO_DB || '',
         user: process.env.ODOO_USERNAME || '',
+        // Utiliser le token API si disponible, sinon le mot de passe
+        apiKey: process.env.ODOO_API_KEY || '',
         pass: process.env.ODOO_PASSWORD || ''
     };
 
-    // Vérifier que toutes les variables sont présentes
-    if (!ODOO.url || !ODOO.db || !ODOO.user || !ODOO.pass) {
-        console.error('Missing Odoo credentials:', ODOO);
+    console.log('Config check:', {
+        url: !!ODOO.url,
+        db: !!ODOO.db,
+        user: !!ODOO.user,
+        hasApiKey: !!ODOO.apiKey,
+        hasPassword: !!ODOO.pass
+    });
+
+    if (!ODOO.url || !ODOO.db || !ODOO.user || (!ODOO.apiKey && !ODOO.pass)) {
         return res.status(500).json({
             success: false,
-            message: 'Variables d\'environnement manquantes. Vérifiez ODOO_URL, ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD dans Vercel Settings.'
+            message: 'Variables manquantes. Vérifiez ODOO_URL, ODOO_DB, ODOO_USERNAME et (ODOO_API_KEY ou ODOO_PASSWORD)'
         });
     }
 
@@ -37,36 +35,42 @@ export default async function handler(req, res) {
 
     async function auth() {
         if (cache.uid && cache.time && (Date.now() - cache.time) < 3600000) {
-            console.log('Using cached session:', cache.uid);
+            console.log('Using cached session');
             return cache;
         }
         
-        console.log('Authenticating to Odoo...', { url: ODOO.url, db: ODOO.db, user: ODOO.user });
+        console.log('Authenticating with', ODOO.apiKey ? 'API Key' : 'Password');
         
         try {
+            const authBody = {
+                jsonrpc: '2.0',
+                params: {
+                    db: ODOO.db,
+                    login: ODOO.user,
+                    password: ODOO.apiKey || ODOO.pass  // Utiliser le token en priorité
+                }
+            };
+
             const r = await fetch(`${ODOO.url}/web/session/authenticate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    jsonrpc: '2.0', 
-                    params: { 
-                        db: ODOO.db, 
-                        login: ODOO.user, 
-                        password: ODOO.pass 
-                    }
-                })
+                body: JSON.stringify(authBody)
             });
             
             const d = await r.json();
-            console.log('Auth response:', d);
             
             if (d.result?.uid) {
-                cache = { uid: d.result.uid, sid: d.result.session_id, time: Date.now() };
+                cache = { 
+                    uid: d.result.uid, 
+                    sid: d.result.session_id, 
+                    time: Date.now() 
+                };
                 global.odooSession = cache;
                 console.log('Auth successful, UID:', cache.uid);
                 return cache;
             }
             
+            console.error('Auth failed:', d);
             throw new Error(d.error?.data?.message || 'Authentication failed');
         } catch (error) {
             console.error('Auth error:', error);
@@ -80,24 +84,35 @@ export default async function handler(req, res) {
         try {
             const r = await fetch(`${ODOO.url}/web/dataset/call_kw`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Cookie': `session_id=${s.sid}` },
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Cookie': `session_id=${s.sid}` 
+                },
                 body: JSON.stringify({
                     jsonrpc: '2.0',
                     method: 'call',
-                    params: { model, method, args, kwargs: { ...kwargs, context: { lang: 'fr_FR', ...kwargs.context }}}
+                    params: { 
+                        model, 
+                        method, 
+                        args, 
+                        kwargs: { 
+                            ...kwargs, 
+                            context: { lang: 'fr_FR', tz: 'Europe/Paris', ...kwargs.context }
+                        }
+                    }
                 })
             });
             
             const d = await r.json();
             
             if (d.error) {
-                console.error('Odoo call error:', d.error);
+                console.error('Call error:', d.error);
                 throw new Error(d.error.data?.message || 'Odoo error');
             }
             
             return d.result;
         } catch (error) {
-            console.error(`Call error ${model}.${method}:`, error);
+            console.error(`Error ${model}.${method}:`, error);
             throw error;
         }
     }
@@ -107,25 +122,19 @@ export default async function handler(req, res) {
         const body = req.method === 'POST' ? req.body : {};
 
         if (action === 'health') {
-            // Tester la connexion Odoo
             let odooConnected = false;
             try {
                 await auth();
                 odooConnected = true;
             } catch (e) {
-                console.error('Health check - Odoo connection failed:', e);
+                console.error('Health check failed:', e.message);
             }
             
             return res.json({ 
                 status: 'OK', 
                 timestamp: new Date().toISOString(), 
                 odoo_connected: odooConnected,
-                env_check: {
-                    url: !!ODOO.url,
-                    db: !!ODOO.db,
-                    user: !!ODOO.user,
-                    pass: !!ODOO.pass
-                }
+                auth_method: ODOO.apiKey ? 'api_key' : 'password'
             });
         }
 
