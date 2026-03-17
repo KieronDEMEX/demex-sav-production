@@ -3,180 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Demex SAV Pro</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <title>DEMEX SAV Pro</title>
     <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        :root{--p:#0052CC;--a:#FF6B35;--s:#00C853;--w:#FFB300;--bg:#FAFBFC;--surface:#FFF;--border:#E0E4E8;--text:#0A1929;--muted:#8993A4}
-        body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
-        .container{max-width:1400px;margin:0 auto;padding:0 24px}
-        .card{background:var(--surface);border-radius:12px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,0.08);padding:24px}
-        .badge{display:inline-flex;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600}
-        .badge-info{background:#E6F0FF;color:#0052CC}
-        .badge-warning{background:#FFF8E1;color:#F57C00}
-        .badge-success{background:#E8F5E9;color:#2E7D32}
-        .grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
-        .loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--muted)}
-        .spinner{width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        .error-box{background:#FFEBEE;border:1px solid #EF5350;color:#C62828;padding:16px;border-radius:8px;margin:20px 0}
-    </style>
-</head>
-<body>
-    <div id="root"></div>
-    <script type="text/babel">
-        const {useState,useEffect,createContext,useContext}=React;
-        const AppContext=createContext();
-
-        class API{
-            constructor(){
-                this.base = '/api';
-                console.log('API Base URL:', this.base);
-            }
-            
-            async call(action,data={}){
-                const url = `${this.base}/odoo?action=${action}`;
-                console.log('Calling API:', url, data);
-                
-                try {
-                    const r = await fetch(url, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(data)
-                    });
-                    
-                    console.log('Response status:', r.status);
-                    const res = await r.json();
-                    console.log('Response data:', res);
-                    
-                    if(!res.success && res.message) {
-                        throw new Error(res.message);
-                    }
-                    
-                    return res.data || res;
-                } catch(error) {
-                    console.error('API Error:', error);
-                    throw error;
-                }
-            }
-            
-            health(){return this.call('health');}
-            getTickets(filters=[],limit=50){return this.call('getTickets',{filters,limit});}
-            getStats(){return this.call('getStats');}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
-
-        const AppProvider=({children})=>{
-            const[api]=useState(()=>new API());
-            const[loading,setLoading]=useState(true);
-            const[error,setError]=useState(null);
-            const[user]=useState({name:'Demex User',role:'admin'});
-            
-            useEffect(()=>{
-                console.log('Testing API health...');
-                api.health()
-                    .then(data => {
-                        console.log('Health check success:', data);
-                        setLoading(false);
-                    })
-                    .catch(e => {
-                        console.error('Health check failed:', e);
-                        setError(e.message);
-                        setLoading(false);
-                    });
-            },[]);
-            
-            return <AppContext.Provider value={{api,loading,error,user}}>{children}</AppContext.Provider>;
-        };
-
-        const Header=()=>{
-            const{user}=useContext(AppContext);
-            return(
-                <header style={{background:'linear-gradient(135deg,#0052CC 0%,#003D99 100%)',color:'white',padding:'20px 0',boxShadow:'0 2px 8px rgba(0,0,0,0.1)'}}>
-                    <div className="container" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:'16px'}}>
-                            <div style={{width:'48px',height:'48px',background:'white',borderRadius:'12px',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:'20px',color:'#0052CC'}}>DX</div>
-                            <div><h1 style={{fontSize:'24px',fontWeight:800}}>Demex SAV Pro</h1><p style={{fontSize:'13px',opacity:0.9}}>Gestion des interventions</p></div>
-                        </div>
-                        <div style={{textAlign:'right'}}><div style={{fontWeight:600,fontSize:'14px'}}>{user.name}</div><div style={{fontSize:'12px',opacity:0.8}}>{user.role}</div></div>
-                    </div>
-                </header>
-            );
-        };
-
-        const StatCard=({icon,title,value,color})=>{
-            const Icon=lucide[icon];
-            return(
-                <div className="card"><div style={{display:'flex',justifyContent:'space-between'}}>
-                    <div><div style={{fontSize:'12px',fontWeight:600,color:'var(--muted)',textTransform:'uppercase',marginBottom:'8px'}}>{title}</div>
-                    <div style={{fontSize:'32px',fontWeight:800}}>{value}</div></div>
-                    <div style={{width:'48px',height:'48px',background:`${color}20`,borderRadius:'8px',display:'flex',alignItems:'center',justifyContent:'center',color}}>{Icon&&<Icon size={24}/>}</div>
-                </div></div>
-            );
-        };
-
-        const Dashboard=()=>{
-            const{api}=useContext(AppContext);
-            const[stats,setStats]=useState({total:0,nouveau:0,en_cours:0,resolu:0});
-            const[tickets,setTickets]=useState([]);
-            const[loading,setLoading]=useState(true);
-            
-            useEffect(()=>{
-                console.log('Loading dashboard data...');
-                Promise.all([api.getStats(),api.getTickets([],5)])
-                .then(([s,t])=>{
-                    console.log('Stats:', s);
-                    console.log('Tickets:', t);
-                    setStats(s);
-                    setTickets(t);
-                    setLoading(false);
-                })
-                .catch(err => {
-                    console.error('Dashboard error:', err);
-                    setLoading(false);
-                });
-            },[]);
-            
-            if(loading)return <div className="loading"><div className="spinner"></div><span style={{marginLeft:'12px'}}>Chargement Odoo...</span></div>;
-            
-            return(
-                <div><div style={{marginBottom:'32px'}}><h2 style={{fontSize:'28px',fontWeight:800,marginBottom:'8px'}}>Tableau de bord</h2>
-                <p style={{color:'var(--muted)'}}>Vue d'ensemble de vos interventions SAV</p></div>
-                <div className="grid" style={{marginBottom:'32px'}}>
-                    <StatCard icon="Wrench" title="Total" value={stats.total} color="#0052CC"/>
-                    <StatCard icon="AlertCircle" title="Nouvelles" value={stats.nouveau} color="#FF6B35"/>
-                    <StatCard icon="Clock" title="En cours" value={stats.en_cours} color="#FFB300"/>
-                    <StatCard icon="CheckCircle" title="Résolues" value={stats.resolu} color="#00C853"/>
-                </div>
-                <div className="card"><h3 style={{fontSize:'18px',fontWeight:700,marginBottom:'20px'}}>Interventions récentes</h3>
-                {tickets.length===0?<p style={{color:'var(--muted)',textAlign:'center',padding:'20px'}}>Aucune intervention</p>:
-                <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
-                    {tickets.map(t=><div key={t.id} style={{padding:'16px',border:'1px solid var(--border)',borderRadius:'8px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                        <div><div style={{fontWeight:600,marginBottom:'4px'}}>{t.name}</div>
-                        <div style={{fontSize:'13px',color:'var(--muted)'}}>{t.partner_id?.[1]||'Client'} • {new Date(t.create_date).toLocaleDateString('fr-FR')}</div></div>
-                        <span className={`badge badge-${t.stage_id?.[1]?.toLowerCase().includes('nouveau')?'info':t.stage_id?.[1]?.toLowerCase().includes('cours')?'warning':'success'}`}>{t.stage_id?.[1]||'N/A'}</span>
-                    </div>)}
-                </div>}</div></div>
-            );
-        };
-
-        const App=()=>{
-            const{loading,error}=useContext(AppContext);
-            
-            if(loading)return <div><Header/><div className="loading" style={{minHeight:'50vh'}}><div className="spinner"></div><span style={{marginLeft:'12px'}}>Connexion...</span></div></div>;
-            
-            if(error)return <div><Header/><div className="container" style={{padding:'40px 24px'}}><div className="error-box"><strong>❌ Erreur de connexion</strong><br/><br/>{error}<br/><br/>Vérifiez les variables d'environnement dans Vercel (Settings → Environment Variables).</div></div></div>;
-            
-            return <div><Header/><main className="container" style={{padding:'40px 24px'}}><Dashboard/></main>
-            <footer style={{background:'#0A1929',color:'#8993A4',padding:'24px 0',textAlign:'center',marginTop:'60px'}}>
-            <div className="container"><p style={{fontSize:'14px'}}><span style={{color:'white',fontWeight:600}}>Demex FR</span> — <a href="https://www.demexfr.com" target="_blank" style={{color:'#4A9EFF'}}>www.demexfr.com</a> — <a href="tel:0475822686" style={{color:'#4A9EFF'}}>04 75 82 26 86</a></p></div></footer></div>;
-        };
-
-        if(typeof lucide!=='undefined')lucide.createIcons();
-        ReactDOM.createRoot(document.getElementById('root')).render(<AppProvider><App/></AppProvider>);
-    </script>
-</body>
-</html>
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo h1 {
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 900;
+        }
+        .logo p {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .info-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        .info-box p {
+            color: #666;
+            line-height: 1.6;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }
+        .info-box code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: #764ba2;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            width
