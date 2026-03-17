@@ -33,15 +33,37 @@
         const AppContext=createContext();
 
         class API{
-            constructor(){this.base=window.location.hostname==='localhost'?'http://localhost:3000':'';}
-            async call(action,data={}){
-                const r=await fetch(`${this.base}/api/odoo?action=${action}`,{
-                    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)
-                });
-                const res=await r.json();
-                if(!res.success)throw new Error(res.message||'API error');
-                return res.data||res;
+            constructor(){
+                this.base = '/api';
+                console.log('API Base URL:', this.base);
             }
+            
+            async call(action,data={}){
+                const url = `${this.base}/odoo?action=${action}`;
+                console.log('Calling API:', url, data);
+                
+                try {
+                    const r = await fetch(url, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(data)
+                    });
+                    
+                    console.log('Response status:', r.status);
+                    const res = await r.json();
+                    console.log('Response data:', res);
+                    
+                    if(!res.success && res.message) {
+                        throw new Error(res.message);
+                    }
+                    
+                    return res.data || res;
+                } catch(error) {
+                    console.error('API Error:', error);
+                    throw error;
+                }
+            }
+            
             health(){return this.call('health');}
             getTickets(filters=[],limit=50){return this.call('getTickets',{filters,limit});}
             getStats(){return this.call('getStats');}
@@ -52,9 +74,21 @@
             const[loading,setLoading]=useState(true);
             const[error,setError]=useState(null);
             const[user]=useState({name:'Demex User',role:'admin'});
+            
             useEffect(()=>{
-                api.health().then(()=>setLoading(false)).catch(e=>{setError(e.message);setLoading(false);});
+                console.log('Testing API health...');
+                api.health()
+                    .then(data => {
+                        console.log('Health check success:', data);
+                        setLoading(false);
+                    })
+                    .catch(e => {
+                        console.error('Health check failed:', e);
+                        setError(e.message);
+                        setLoading(false);
+                    });
             },[]);
+            
             return <AppContext.Provider value={{api,loading,error,user}}>{children}</AppContext.Provider>;
         };
 
@@ -89,12 +123,25 @@
             const[stats,setStats]=useState({total:0,nouveau:0,en_cours:0,resolu:0});
             const[tickets,setTickets]=useState([]);
             const[loading,setLoading]=useState(true);
+            
             useEffect(()=>{
+                console.log('Loading dashboard data...');
                 Promise.all([api.getStats(),api.getTickets([],5)])
-                .then(([s,t])=>{setStats(s);setTickets(t);setLoading(false);})
-                .catch(()=>setLoading(false));
+                .then(([s,t])=>{
+                    console.log('Stats:', s);
+                    console.log('Tickets:', t);
+                    setStats(s);
+                    setTickets(t);
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error('Dashboard error:', err);
+                    setLoading(false);
+                });
             },[]);
+            
             if(loading)return <div className="loading"><div className="spinner"></div><span style={{marginLeft:'12px'}}>Chargement Odoo...</span></div>;
+            
             return(
                 <div><div style={{marginBottom:'32px'}}><h2 style={{fontSize:'28px',fontWeight:800,marginBottom:'8px'}}>Tableau de bord</h2>
                 <p style={{color:'var(--muted)'}}>Vue d'ensemble de vos interventions SAV</p></div>
@@ -118,8 +165,11 @@
 
         const App=()=>{
             const{loading,error}=useContext(AppContext);
+            
             if(loading)return <div><Header/><div className="loading" style={{minHeight:'50vh'}}><div className="spinner"></div><span style={{marginLeft:'12px'}}>Connexion...</span></div></div>;
-            if(error)return <div><Header/><div className="container" style={{padding:'40px 24px'}}><div className="error-box"><strong>❌ Erreur</strong><br/>{error}<br/><br/>Vérifiez les variables d'environnement dans Vercel.</div></div></div>;
+            
+            if(error)return <div><Header/><div className="container" style={{padding:'40px 24px'}}><div className="error-box"><strong>❌ Erreur de connexion</strong><br/><br/>{error}<br/><br/>Vérifiez les variables d'environnement dans Vercel (Settings → Environment Variables).</div></div></div>;
+            
             return <div><Header/><main className="container" style={{padding:'40px 24px'}}><Dashboard/></main>
             <footer style={{background:'#0A1929',color:'#8993A4',padding:'24px 0',textAlign:'center',marginTop:'60px'}}>
             <div className="container"><p style={{fontSize:'14px'}}><span style={{color:'white',fontWeight:600}}>Demex FR</span> — <a href="https://www.demexfr.com" target="_blank" style={{color:'#4A9EFF'}}>www.demexfr.com</a> — <a href="tel:0475822686" style={{color:'#4A9EFF'}}>04 75 82 26 86</a></p></div></footer></div>;
